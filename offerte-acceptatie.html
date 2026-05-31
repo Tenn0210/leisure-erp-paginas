@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Offerte</title>
+<title>Offerte accepteren</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+  .header{font-size:13px;font-weight:600;color:#666;letter-spacing:.5px;text-transform:uppercase;margin-bottom:20px;text-align:center}
   .kaart{background:#fff;border-radius:12px;padding:40px;max-width:560px;width:100%;box-shadow:0 2px 16px rgba(0,0,0,.08)}
   h1{font-size:22px;margin-bottom:8px;color:#111}
   .sub{color:#666;font-size:14px;margin-bottom:28px}
@@ -21,25 +22,32 @@
   .melding{padding:20px;border-radius:8px;text-align:center;font-size:15px;margin-top:16px}
   .groen{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
   .rood{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
-  .grijs{background:#f3f4f6;color:#374151;border:1px solid #e5e7eb}
   .laden{color:#666;text-align:center;padding:40px 0}
   .btn:disabled{opacity:.6;cursor:not-allowed}
 </style>
 </head>
 <body>
+<div class="header" id="bedrijfsnaam-header"></div>
 <div class="kaart" id="app"><p class="laden">Laden…</p></div>
 <script>
 const FUNCTIONS_URL = 'https://dfopkwhjvwfdowiuyygh.supabase.co/functions/v1'
 const token = new URLSearchParams(location.search).get('token')
 const app = document.getElementById('app')
+const header = document.getElementById('bedrijfsnaam-header')
 
 function euro(bedrag) {
   if (!bedrag) return '—'
-  return '€ ' + Number(bedrag).toLocaleString('nl-NL', { minimumFractionDigits: 2 })
+  return '€ ' + Number(bedrag).toLocaleString('nl-NL', { minimumFractionDigits: 2 })
 }
 
 function datumNL(iso) {
   return new Date(iso).toLocaleDateString('nl-NL')
+}
+
+function zetBranding(bedrijfsnaam) {
+  if (!bedrijfsnaam) return
+  header.textContent = bedrijfsnaam
+  document.title = 'Offerte accepteren — ' + bedrijfsnaam
 }
 
 async function laad() {
@@ -53,6 +61,8 @@ async function laad() {
     toonFout('Verbindingsfout', 'Probeer de pagina te herladen.')
     return
   }
+
+  zetBranding(data.bedrijfsnaam)
 
   if (data.status === 'niet_gevonden') {
     toonFout('Link niet gevonden', 'Deze acceptatielink bestaat niet of is verlopen.')
@@ -116,8 +126,8 @@ async function stuurBeslissing(beslissing) {
     const tekst = beslissing === 'akkoord'
       ? '✓ Bedankt! Uw akkoord is vastgelegd. We nemen spoedig contact met u op.'
       : 'Uw afwijzing is ontvangen. We nemen contact met u op.'
-    app.innerHTML += `<div class="melding ${kleur}" style="margin-top:16px">${tekst}</div>`
     document.querySelectorAll('.knoppen').forEach(el => el.remove())
+    app.innerHTML += `<div class="melding ${kleur}" style="margin-top:16px">${tekst}</div>`
   } else {
     toonFout('Fout', data.error ?? 'Onbekende fout.')
   }
