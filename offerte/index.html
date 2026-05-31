@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offerte accepteren</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f4f8;min-height:100vh;display:flex;flex-direction:column}
+
+  /* Header — zelfde look als app-sidebar */
+  .app-header{background:#1565c0;padding:16px 24px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+  .app-header img{height:40px;width:40px;object-fit:contain;border-radius:6px;background:#fff;padding:3px}
+  .app-header .logo-placeholder{height:40px;width:40px;border-radius:6px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff}
+  .app-header .bedrijfsnaam{color:#fff;font-size:17px;font-weight:600;letter-spacing:.2px}
+  .app-header .subtitel{color:rgba(255,255,255,.7);font-size:12px;margin-top:1px}
+
+  /* Pagina-body */
+  .pagina-body{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px}
+
+  /* Kaart */
+  .kaart{background:#fff;border-radius:12px;padding:36px 40px;max-width:580px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e2e8f0}
+  h1{font-size:21px;font-weight:700;color:#1a202c;margin-bottom:6px}
+  .sub{color:#64748b;font-size:14px;margin-bottom:24px}
+
+  /* Info-tabel */
+  .info{background:#f8fafc;border-radius:8px;padding:16px;margin-bottom:24px;border:1px solid #e2e8f0}
+  .info-rij{display:flex;justify-content:space-between;padding:5px 0;font-size:14px;border-bottom:1px solid #e2e8f0}
+  .info-rij:last-child{border-bottom:none;font-weight:600;color:#1565c0;font-size:15px}
+  .info-rij span:first-child{color:#64748b}
+
+  /* Knoppen */
+  .acties{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .btn{flex:1;min-width:130px;padding:13px 18px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn-akkoord{background:#16a34a;color:#fff}
+  .btn-akkoord:hover:not(:disabled){background:#15803d}
+  .btn-afwijzen{background:#fff;color:#dc2626;border:2px solid #dc2626}
+  .btn-afwijzen:hover:not(:disabled){background:#fef2f2}
+  .btn-pdf{background:#1565c0;color:#fff;flex:0 0 auto;min-width:auto;padding:13px 20px}
+  .btn-pdf:hover:not(:disabled){background:#1251a3}
+
+  /* Meldingen */
+  .melding{padding:18px;border-radius:8px;text-align:center;font-size:15px;margin-top:16px;line-height:1.5}
+  .melding-groen{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+  .melding-rood{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+  .melding-grijs{background:#f8fafc;color:#475569;border:1px solid #e2e8f0}
+
+  /* Wettelijke tekst */
+  .wettelijk{font-size:12px;color:#94a3b8;margin-bottom:20px;line-height:1.6}
+
+  /* Laden */
+  .laden{text-align:center;padding:48px 0;color:#94a3b8}
+  .spinner{width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:#1565c0;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header class="app-header" id="app-header">
+  <div class="logo-placeholder" id="logo-wrap">H</div>
+  <div>
+    <div class="bedrijfsnaam" id="header-bedrijfsnaam">Laden…</div>
+    <div class="subtitel">Offerte acceptatie</div>
+  </div>
+</header>
+
+<div class="pagina-body">
+  <div class="kaart" id="kaart">
+    <div class="laden">
+      <div class="spinner"></div>
+      <p>Offerte ophalen…</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://dfopkwhjvwfdowiuyygh.supabase.co/functions/v1'
+const token = new URLSearchParams(location.search).get('token')
+const kaart = document.getElementById('kaart')
+const headerNaam = document.getElementById('header-bedrijfsnaam')
+const logoWrap = document.getElementById('logo-wrap')
+
+function euro(v) {
+  if (v == null) return null
+  return '€ ' + Number(v).toLocaleString('nl-NL', {minimumFractionDigits:2, maximumFractionDigits:2})
+}
+function datumNL(iso) { return new Date(iso).toLocaleDateString('nl-NL') }
+
+function zetBranding(naam, logoUrl) {
+  headerNaam.textContent = naam || 'Offerte acceptatie'
+  document.title = naam ? `Offerte accepteren — ${naam}` : 'Offerte accepteren'
+  if (logoUrl) {
+    logoWrap.innerHTML = `<img src="${logoUrl}" alt="${naam}" onerror="this.parentNode.textContent='${(naam||'?')[0]}'"/>`
+  } else if (naam) {
+    logoWrap.textContent = naam[0].toUpperCase()
+  }
+}
+
+function toonFout(titel, tekst) {
+  kaart.innerHTML = `<h1>${titel}</h1><p class="sub">${tekst}</p>`
+}
+
+async function laad() {
+  if (!token) { toonFout('Ongeldige link', 'Er ontbreekt een token in deze URL.'); return }
+
+  let data
+  try {
+    const res = await fetch(`${API}/offerte-acceptatie?token=${encodeURIComponent(token)}`)
+    data = await res.json()
+  } catch { toonFout('Verbindingsfout', 'Probeer de pagina te herladen.'); return }
+
+  zetBranding(data.bedrijfsnaam, data.logo_url)
+
+  if (data.status === 'niet_gevonden') { toonFout('Link niet gevonden', 'Deze acceptatielink bestaat niet of is verlopen.'); return }
+  if (data.status === 'verlopen') { toonFout('Link verlopen', 'Deze acceptatielink is verlopen. Neem contact op voor een nieuwe offerte.'); return }
+  if (data.status === 'al_gebruikt') {
+    const cls = data.beslissing === 'akkoord' ? 'melding-groen' : 'melding-rood'
+    const tekst = data.beslissing === 'akkoord' ? '✓ U heeft deze offerte al geaccepteerd.' : 'U heeft deze offerte al afgewezen.'
+    kaart.innerHTML = `<h1>Al verwerkt</h1><div class="melding ${cls}">${tekst}</div>`
+    return
+  }
+
+  const o = data.offerte
+  const exclBtw = o.totaal_excl_btw != null ? Number(o.totaal_excl_btw) : null
+  const inclBtw = exclBtw != null ? exclBtw * 1.21 : null
+
+  const pdfKnop = data.pdf_url
+    ? `<a href="${data.pdf_url}" target="_blank" class="btn btn-pdf" style="text-decoration:none;display:inline-block">📄 Bekijk offerte</a>`
+    : ''
+
+  kaart.innerHTML = `
+    <h1>Offerte ${o.nummer}</h1>
+    <p class="sub">${o.project} — ${o.klant}</p>
+    <div class="info">
+      <div class="info-rij"><span>Offertenummer</span><span>${o.nummer}</span></div>
+      <div class="info-rij"><span>Project</span><span>${o.project}</span></div>
+      ${exclBtw != null ? `<div class="info-rij"><span>Subtotaal excl. BTW</span><span>${euro(exclBtw)}</span></div>` : ''}
+      ${inclBtw != null ? `<div class="info-rij"><span>Totaal incl. 21% BTW</span><span>${euro(inclBtw)}</span></div>` : ''}
+      <div class="info-rij"><span>Geldig tot</span><span>${datumNL(o.verloopt_op)}</span></div>
+    </div>
+    <p class="wettelijk">Door op "Akkoord" te klikken bevestigt u dat u deze offerte accepteert en de bijbehorende voorwaarden hebt gelezen. Uw beslissing wordt vastgelegd met tijdstip en IP-adres.</p>
+    <div class="acties">
+      ${pdfKnop}
+      <button class="btn btn-akkoord" id="btn-akkoord">✓ Akkoord</button>
+      <button class="btn btn-afwijzen" id="btn-afwijzen">✕ Afwijzen</button>
+    </div>
+  `
+
+  document.getElementById('btn-akkoord').onclick = () => stuurBeslissing('akkoord')
+  document.getElementById('btn-afwijzen').onclick = () => stuurBeslissing('afgewezen')
+}
+
+async function stuurBeslissing(beslissing) {
+  document.querySelectorAll('.btn').forEach(b => b.disabled = true)
+  let data
+  try {
+    const res = await fetch(`${API}/offerte-acceptatie?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({beslissing}),
+    })
+    data = await res.json()
+  } catch { toonFout('Fout', 'Er is iets misgegaan. Probeer het opnieuw.'); return }
+
+  if (data.success) {
+    const cls = beslissing === 'akkoord' ? 'melding-groen' : 'melding-rood'
+    const tekst = beslissing === 'akkoord'
+      ? '✓ Bedankt! Uw akkoord is vastgelegd. We nemen spoedig contact met u op.'
+      : 'Uw afwijzing is ontvangen. We nemen contact met u op.'
+    document.querySelectorAll('.acties').forEach(el => el.remove())
+    kaart.innerHTML += `<div class="melding ${cls}">${tekst}</div>`
+  } else {
+    toonFout('Fout', data.error ?? 'Onbekende fout.')
+  }
+}
+
+laad()
+</script>
+</body>
+</html>
