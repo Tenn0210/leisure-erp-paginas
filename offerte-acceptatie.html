@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Offerte</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .kaart{background:#fff;border-radius:12px;padding:40px;max-width:560px;width:100%;box-shadow:0 2px 16px rgba(0,0,0,.08)}
+  h1{font-size:22px;margin-bottom:8px;color:#111}
+  .sub{color:#666;font-size:14px;margin-bottom:28px}
+  .info{background:#f8f8f8;border-radius:8px;padding:16px;margin-bottom:28px;font-size:14px;line-height:1.7}
+  .info strong{color:#111}
+  .knoppen{display:flex;gap:12px;flex-wrap:wrap}
+  .btn{flex:1;padding:14px 20px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;text-align:center;min-width:140px}
+  .akkoord{background:#16a34a;color:#fff}
+  .akkoord:hover{background:#15803d}
+  .afwijzen{background:#fff;color:#dc2626;border:2px solid #dc2626}
+  .afwijzen:hover{background:#fef2f2}
+  .melding{padding:20px;border-radius:8px;text-align:center;font-size:15px;margin-top:16px}
+  .groen{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+  .rood{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+  .grijs{background:#f3f4f6;color:#374151;border:1px solid #e5e7eb}
+  .laden{color:#666;text-align:center;padding:40px 0}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="kaart" id="app"><p class="laden">Laden…</p></div>
+<script>
+const FUNCTIONS_URL = 'https://dfopkwhjvwfdowiuyygh.supabase.co/functions/v1'
+const token = new URLSearchParams(location.search).get('token')
+const app = document.getElementById('app')
+
+function euro(bedrag) {
+  if (!bedrag) return '—'
+  return '€ ' + Number(bedrag).toLocaleString('nl-NL', { minimumFractionDigits: 2 })
+}
+
+function datumNL(iso) {
+  return new Date(iso).toLocaleDateString('nl-NL')
+}
+
+async function laad() {
+  if (!token) { toonFout('Ongeldige link', 'Er ontbreekt een token in de URL.'); return }
+
+  let data
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/offerte-acceptatie?token=${encodeURIComponent(token)}`)
+    data = await res.json()
+  } catch {
+    toonFout('Verbindingsfout', 'Probeer de pagina te herladen.')
+    return
+  }
+
+  if (data.status === 'niet_gevonden') {
+    toonFout('Link niet gevonden', 'Deze acceptatielink bestaat niet of is verlopen.')
+    return
+  }
+  if (data.status === 'verlopen') {
+    toonFout('Link verlopen', 'Deze acceptatielink is verlopen. Neem contact op voor een nieuwe offerte.')
+    return
+  }
+  if (data.status === 'al_gebruikt') {
+    const kleur = data.beslissing === 'akkoord' ? 'groen' : 'rood'
+    const tekst = data.beslissing === 'akkoord'
+      ? 'U heeft deze offerte al geaccepteerd.'
+      : 'U heeft deze offerte al afgewezen.'
+    app.innerHTML = `<h1>Al verwerkt</h1><div class="melding ${kleur}">${tekst}</div>`
+    return
+  }
+
+  const o = data.offerte
+  app.innerHTML = `
+    <h1>Offerte ${o.nummer}</h1>
+    <p class="sub">${o.project} — ${o.klant}</p>
+    <div class="info">
+      <div><strong>Offertenummer:</strong> ${o.nummer}</div>
+      <div><strong>Project:</strong> ${o.project}</div>
+      <div><strong>Totaalbedrag (incl. BTW):</strong> ${euro(o.bedrag)}</div>
+      <div><strong>Geldig tot:</strong> ${datumNL(o.verloopt_op)}</div>
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:20px">
+      Door op "Akkoord" te klikken bevestigt u dat u deze offerte accepteert.
+      Uw beslissing wordt vastgelegd met tijdstip en IP-adres.
+    </p>
+    <div class="knoppen">
+      <button class="btn akkoord" id="btn-akkoord">✓ Akkoord</button>
+      <button class="btn afwijzen" id="btn-afwijzen">✕ Afwijzen</button>
+    </div>
+  `
+
+  document.getElementById('btn-akkoord').onclick = () => stuurBeslissing('akkoord')
+  document.getElementById('btn-afwijzen').onclick = () => stuurBeslissing('afgewezen')
+}
+
+async function stuurBeslissing(beslissing) {
+  document.querySelectorAll('.btn').forEach(b => b.disabled = true)
+
+  let data
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/offerte-acceptatie?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beslissing }),
+    })
+    data = await res.json()
+  } catch {
+    toonFout('Fout', 'Er is iets misgegaan. Probeer het opnieuw.')
+    return
+  }
+
+  if (data.success) {
+    const kleur = beslissing === 'akkoord' ? 'groen' : 'rood'
+    const tekst = beslissing === 'akkoord'
+      ? '✓ Bedankt! Uw akkoord is vastgelegd. We nemen spoedig contact met u op.'
+      : 'Uw afwijzing is ontvangen. We nemen contact met u op.'
+    app.innerHTML += `<div class="melding ${kleur}" style="margin-top:16px">${tekst}</div>`
+    document.querySelectorAll('.knoppen').forEach(el => el.remove())
+  } else {
+    toonFout('Fout', data.error ?? 'Onbekende fout.')
+  }
+}
+
+function toonFout(titel, omschrijving) {
+  app.innerHTML = `<h1>${titel}</h1><p class="sub">${omschrijving}</p>`
+}
+
+laad()
+</script>
+</body>
+</html>
